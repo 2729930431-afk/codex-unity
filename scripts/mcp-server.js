@@ -5,6 +5,7 @@ const path = require("path");
 const readline = require("readline");
 
 const { callEditorRpc, isWriteMethod, listMethods } = require("./lib/editor-rpc-client");
+const { getUpdateStatus, hasBlockingUpdates } = require("./lib/update-status");
 const { runValidateAfterChanges } = require("./lib/validate-after-changes");
 const {
   DEFAULT_PACKAGE_URL,
@@ -15,10 +16,21 @@ const {
 const pluginRoot = path.resolve(__dirname, "..");
 const serverVersion = "0.1.0";
 
+const updateCheckProperties = {
+  skipUpdateCheck: { type: "boolean", description: "Skip the pre-use plugin update gate for this call." },
+  forceUpdateCheck: { type: "boolean", description: "Bypass the cached update status and query Git again." },
+  codexUnityRepoPath: { type: "string", description: "Optional local Git repo path for codex-unity." },
+  editorRpcRepoPath: { type: "string", description: "Optional local Git repo path for com.codex.editor-rpc." },
+  gitProxy: { type: "string", description: "Optional Git HTTP proxy, for example http://127.0.0.1:6789." },
+  updateCheckTtlSeconds: { type: "number", description: "Update status cache TTL. Default 300 seconds." },
+  skipRemoteCheck: { type: "boolean", description: "Only inspect local Git state without querying remotes." },
+};
+
 const tools = [
   {
     name: "codex_unity_doctor",
-    description: "Check the CodexUnity plugin, optional Unity manifest state, and optional EditorRpc connectivity.",
+    description:
+      "Check CodexUnity, both plugin update states, optional Unity manifest state, and optional EditorRpc connectivity.",
     inputSchema: {
       type: "object",
       properties: {
@@ -26,6 +38,18 @@ const tools = [
         host: { type: "string", description: "EditorRpc host. Default 127.0.0.1." },
         port: { type: "number", description: "EditorRpc port. Default 47841." },
         timeoutSeconds: { type: "number", description: "Connection timeout. Default 3 for doctor." },
+        ...updateCheckProperties,
+      },
+    },
+  },
+  {
+    name: "codex_unity_update_status",
+    description: "Check whether codex-unity and com.codex.editor-rpc local repos match their GitHub remotes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectRoot: { type: "string", description: "Optional Unity project root for embedded/package path detection." },
+        ...updateCheckProperties,
       },
     },
   },
@@ -38,6 +62,7 @@ const tools = [
         host: { type: "string" },
         port: { type: "number" },
         timeoutSeconds: { type: "number" },
+        ...updateCheckProperties,
       },
     },
   },
@@ -54,6 +79,7 @@ const tools = [
         port: { type: "number", description: "EditorRpc port. Default 47841." },
         timeoutSeconds: { type: "number", description: "Connection timeout. Default 30." },
         allowWrite: { type: "boolean", description: "Required for mutating method prefixes." },
+        ...updateCheckProperties,
       },
       required: ["method"],
     },
@@ -79,6 +105,7 @@ const tools = [
         hierarchyMaxDepth: { type: "number", description: "Hierarchy snapshot max depth. Default 2." },
         hierarchyLimit: { type: "number", description: "Hierarchy snapshot node limit. Default 120." },
         allowWrite: { type: "boolean", description: "Required because this clears console and refreshes assets." },
+        ...updateCheckProperties,
       },
       required: ["allowWrite"],
     },
@@ -92,6 +119,7 @@ const tools = [
         projectRoot: { type: "string", description: "Unity project root containing Packages/manifest.json." },
         packageUrl: { type: "string", description: `Package URL. Default ${DEFAULT_PACKAGE_URL}.` },
         allowWrite: { type: "boolean", description: "Must be true because this edits manifest.json." },
+        ...updateCheckProperties,
       },
       required: ["projectRoot", "allowWrite"],
     },
@@ -106,6 +134,25 @@ function toolResult(value, isError = false) {
   };
 }
 
+function updateStatusCheckName(check) {
+  return `update:${check.name}`;
+}
+
+function updateStatusToDoctorCheck(check) {
+  const status = check.status === "current" || check.status === "dirty" ? "pass" : "warn";
+  return {
+    name: updateStatusCheckName(check),
+    status,
+    message: check.message,
+    repoPath: check.repoPath,
+    remoteUrl: check.remoteUrl,
+    localHead: check.localHead,
+    remoteHead: check.remoteHead,
+    dirty: check.dirty,
+    updateAvailable: check.updateAvailable,
+  };
+}
+
 async function runDoctor(args = {}) {
   const checks = [
     { name: "pluginRoot", status: "pass", message: pluginRoot },
@@ -116,6 +163,11 @@ async function runDoctor(args = {}) {
       message: ".mcp.json",
     },
   ];
+
+  const updateStatus = getUpdateStatus({ ...args, pluginRoot });
+  for (const check of updateStatus.checks) {
+    checks.push(updateStatusToDoctorCheck(check));
+  }
 
   if (args.projectRoot) {
     try {
@@ -153,14 +205,45 @@ async function runDoctor(args = {}) {
   }
 
   return {
-    ok: checks.every((check) => check.status !== "fail"),
+    ok: checks.every((check) => check.status !== "fail") && updateStatus.ok,
     checks,
+    updateStatus,
   };
+}
+
+function shouldRunUpdateGate(name, args) {
+  if (args && args.skipUpdateCheck === true) {
+    return false;
+  }
+  return name !== "codex_unity_doctor" && name !== "codex_unity_update_status";
+}
+
+function runUpdateGate(name, args) {
+  if (!shouldRunUpdateGate(name, args)) {
+    return null;
+  }
+  const updateStatus = getUpdateStatus({ ...args, pluginRoot });
+  if (!hasBlockingUpdates(updateStatus)) {
+    return null;
+  }
+  return toolResult({
+    message: "One or more Unity automation plugins are not up to date. Update them or retry with skipUpdateCheck:true if you intentionally want to continue.",
+    updateStatus,
+  }, true);
 }
 
 async function callTool(name, args = {}) {
   if (name === "codex_unity_doctor") {
     return toolResult(await runDoctor(args));
+  }
+
+  if (name === "codex_unity_update_status") {
+    return toolResult(getUpdateStatus({ ...args, pluginRoot, forceUpdateCheck: args.forceUpdateCheck !== false }));
+  }
+
+  const updateGate = runUpdateGate(name, args);
+  if (updateGate) {
+    return updateGate;
   }
 
   if (name === "codex_unity_rpc_methods") {

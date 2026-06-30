@@ -9,10 +9,17 @@ Use this skill to operate Unity through the reusable `com.codex.editor-rpc` pack
 
 ## First Steps
 
-1. Run `codex_unity_doctor` with `projectRoot` when a Unity project is known.
+1. Run `codex_unity_doctor` with `projectRoot` when a Unity project is known. The doctor checks both `codex-unity` and `com.codex.editor-rpc` update status before normal use.
 2. If the project lacks `com.codex.editor-rpc`, call `codex_unity_install_editor_rpc` only when the user intends to edit `Packages/manifest.json` and pass `allowWrite:true`.
 3. Ask the user to open Unity and enable `AI Tools > Editor RPC` when `codex_unity_doctor` cannot connect.
 4. Run `codex_unity_rpc_methods` before guessing method names.
+
+## Update Gate
+
+- Normal MCP tools run a pre-use update gate for both local repos: `codex-unity` and `com.codex.editor-rpc`.
+- If either repo is behind its GitHub remote, the call is blocked with update status details. Update the repo first, or pass `skipUpdateCheck:true` only when the user explicitly wants to continue with a known old version.
+- Use `codex_unity_update_status` to inspect the two plugin repos directly. Pass `projectRoot` so the checker can also find embedded or file-based `com.codex.editor-rpc` packages.
+- If local repo paths are non-standard, pass `codexUnityRepoPath` and `editorRpcRepoPath`, or set `CODEX_UNITY_PLUGIN_REPO` and `CODEX_UNITY_EDITOR_RPC_REPO`.
 
 ## RPC Calls
 

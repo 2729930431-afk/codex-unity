@@ -10,6 +10,7 @@ It provides:
 - Dynamic Unity EditorRpc method discovery through `list_methods`.
 - A guarded generic RPC call tool for all current and future EditorRpc methods.
 - A post-change validation tool that refreshes Unity, waits for domain reload, and checks compile/console state.
+- A pre-use update gate for the Codex plugin and Unity EditorRpc package repositories.
 - A Unity `Packages/manifest.json` helper for installing the EditorRpc UPM package.
 
 The Unity-side protocol layer remains a separate package. This repository does not vendor or replace it.
@@ -17,6 +18,7 @@ The Unity-side protocol layer remains a separate package. This repository does n
 ## MCP Tools
 
 - `codex_unity_doctor`
+- `codex_unity_update_status`
 - `codex_unity_rpc_methods`
 - `codex_unity_rpc_call`
 - `codex_unity_validate_after_changes`
@@ -25,6 +27,8 @@ The Unity-side protocol layer remains a separate package. This repository does n
 Mutating RPC method prefixes are blocked unless the caller passes `allowWrite:true`.
 The post-change validator also requires `allowWrite:true` because it refreshes assets and clears
 the Unity console by default.
+Normal tools check whether `codex-unity` and `com.codex.editor-rpc` are behind their GitHub remotes
+before running. Pass explicit repo paths when using non-standard local checkouts.
 
 ## Development
 

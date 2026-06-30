@@ -99,6 +99,7 @@ test("MCP initialize and tools/list work", async () => {
     const names = list.result.tools.map((tool) => tool.name);
     assert.ok(names.includes("codex_unity_rpc_call"));
     assert.ok(names.includes("codex_unity_rpc_methods"));
+    assert.ok(names.includes("codex_unity_update_status"));
   } finally {
     mcp.stop();
   }
@@ -109,7 +110,7 @@ test("MCP write guard blocks mutating calls without allowWrite", async () => {
   try {
     const response = await mcp.request("tools/call", {
       name: "codex_unity_rpc_call",
-      arguments: { method: "set_transform" },
+      arguments: { method: "set_transform", skipUpdateCheck: true },
     });
     assert.equal(response.result.isError, true);
     assert.match(response.result.content[0].text, /allowWrite/);
@@ -130,7 +131,7 @@ test("MCP write guard allows mutating calls with allowWrite", async () => {
     try {
       const response = await mcp.request("tools/call", {
         name: "codex_unity_rpc_call",
-        arguments: { method: "set_transform", port, allowWrite: true },
+        arguments: { method: "set_transform", port, allowWrite: true, skipUpdateCheck: true },
       });
       assert.equal(response.result.isError, false);
       assert.match(response.result.content[0].text, /set_transform/);
@@ -145,7 +146,7 @@ test("MCP validate-after-changes refuses to run without allowWrite", async () =>
   try {
     const response = await mcp.request("tools/call", {
       name: "codex_unity_validate_after_changes",
-      arguments: {},
+      arguments: { skipUpdateCheck: true },
     });
     assert.equal(response.result.isError, true);
     assert.match(response.result.content[0].text, /allowWrite/);
@@ -195,6 +196,7 @@ test("MCP validate-after-changes refreshes, waits for idle, and validates consol
         arguments: {
           port,
           allowWrite: true,
+          skipUpdateCheck: true,
           initialWaitSeconds: 0,
           retryDelaySeconds: 0,
         },
@@ -215,7 +217,7 @@ test("MCP install tool refuses to edit without allowWrite", async () => {
   try {
     const response = await mcp.request("tools/call", {
       name: "codex_unity_install_editor_rpc",
-      arguments: { projectRoot: root },
+      arguments: { projectRoot: root, skipUpdateCheck: true },
     });
     const manifest = JSON.parse(fs.readFileSync(path.join(root, "Packages", "manifest.json"), "utf8"));
     assert.equal(response.result.isError, true);
@@ -231,7 +233,7 @@ test("MCP install tool writes manifest with allowWrite", async () => {
   try {
     const response = await mcp.request("tools/call", {
       name: "codex_unity_install_editor_rpc",
-      arguments: { projectRoot: root, allowWrite: true },
+      arguments: { projectRoot: root, allowWrite: true, skipUpdateCheck: true },
     });
     const manifest = JSON.parse(fs.readFileSync(path.join(root, "Packages", "manifest.json"), "utf8"));
     assert.equal(response.result.isError, false);
