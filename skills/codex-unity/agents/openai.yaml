@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Unity"
+  short_description: "Control Unity Editor through com.codex.editor-rpc"
+  default_prompt: "Use $codex-unity to diagnose my Unity project, list EditorRpc methods, and call Unity safely through MCP."

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "codex-unity": {
+      "cwd": ".",
+      "command": "node",
+      "args": [
+        ".\\scripts\\mcp-server.js"
+      ],
+      "note": "Codex-side Unity EditorRpc adapter. It talks to com.codex.editor-rpc over local TCP and does not include Unity-side code."
+    }
+  }
+}
