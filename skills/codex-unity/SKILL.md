@@ -38,7 +38,9 @@ Treat `allowWrite:true` as task-local consent for the specific call, not as perm
 
 ## Validation Pattern
 
-- After C# or asset changes, prefer `refresh_assets`, wait for Unity domain reload, then call `get_editor_state`.
+- After C# script changes, always run EditorRpc validation before finishing. If the task changed no scripts, RPC refresh can be skipped unless Unity-side state, assets, scenes, prefabs, or serialized data must be verified.
+- Prefer `codex_unity_validate_after_changes` with `allowWrite:true` after C# or asset changes. It clears the Console by default, runs `refresh_assets`, waits for Unity domain reload, polls `get_editor_state`, then calls `validate_workspace`.
+- When using raw RPC calls instead, run `refresh_assets`, wait for Unity domain reload, then call `get_editor_state`.
 - If refresh or domain reload temporarily stops the RPC server, wait 8 to 15 seconds and retry once or twice.
 - Use `read_console` and `validate_workspace` when available to check compile and import errors.
 - If Unity is unreachable, state which MCP call failed and use static checks only as a fallback.
@@ -54,3 +56,4 @@ Prefer stable RPC methods for reusable Unity operations. Use temporary `Assets/E
 - `read_console` uses `count`, not `limit`.
 - `list_hierarchy` filters by scene and depth; use `find_game_objects` first when locating a specific object.
 - Avoid shell or file round-trips for JSON containing non-ASCII paths or `&`; pass structured objects through MCP when possible.
+- `codex_unity_validate_after_changes` is the preferred post-edit compile gate; if it returns `ok:false`, inspect its `validation.consoleEntries` before claiming the Unity compile is clean.

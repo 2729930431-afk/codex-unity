@@ -5,6 +5,7 @@ const net = require("net");
 const test = require("node:test");
 
 const { callEditorRpc, isWriteMethod, listMethods } = require("../scripts/lib/editor-rpc-client");
+const { buildValidationArgs } = require("../scripts/lib/validate-after-changes");
 
 async function withServer(handler, callback) {
   const sockets = new Set();
@@ -99,4 +100,20 @@ test("write method detection covers mutating prefixes", () => {
   assert.equal(isWriteMethod("batch_assign_materials"), true);
   assert.equal(isWriteMethod("get_editor_state"), false);
   assert.equal(isWriteMethod("list_methods"), false);
+});
+
+test("validate-after-changes builds validate_workspace arguments", () => {
+  assert.deepEqual(buildValidationArgs({
+    consoleCount: 12,
+    includeHierarchy: true,
+    scenePath: "Assets/Scenes/Main.unity",
+    hierarchyMaxDepth: 3,
+  }), {
+    refresh_assets: false,
+    console_count: 12,
+    include_loaded_scenes: true,
+    include_hierarchy: true,
+    scene_path: "Assets/Scenes/Main.unity",
+    hierarchy_max_depth: 3,
+  });
 });

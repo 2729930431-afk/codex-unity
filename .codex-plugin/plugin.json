@@ -1,6 +1,6 @@
 {
   "name": "codex-unity",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260630120145",
   "description": "Codex-side Unity automation through the reusable com.codex.editor-rpc protocol layer.",
   "author": {
     "name": "2729930431-afk",
@@ -20,12 +20,13 @@
   "interface": {
     "displayName": "Codex Unity",
     "shortDescription": "Control Unity Editor through EditorRpc.",
-    "longDescription": "Codex Unity adds MCP tools and a Codex skill for diagnosing Unity projects, installing com.codex.editor-rpc, discovering available RPC methods, and calling any EditorRpc method through a guarded dynamic interface.",
+    "longDescription": "Codex Unity adds MCP tools and a Codex skill for diagnosing Unity projects, installing com.codex.editor-rpc, discovering available RPC methods, calling any EditorRpc method through a guarded dynamic interface, and validating Unity after script changes.",
     "developerName": "2729930431-afk",
     "category": "Developer Tools",
     "capabilities": [
       "Unity EditorRpc discovery",
       "Dynamic RPC calls",
+      "Post-change compile validation",
       "Write-operation guard",
       "Unity package manifest helper",
       "MCP tools"
@@ -33,6 +34,7 @@
     "defaultPrompt": [
       "Use $codex-unity to check whether my Unity project can be controlled through EditorRpc.",
       "Use $codex-unity to list Unity EditorRpc methods and call one safely.",
+      "Use $codex-unity to validate Unity compilation after script edits.",
       "Use $codex-unity to add com.codex.editor-rpc to a Unity project manifest."
     ]
   }

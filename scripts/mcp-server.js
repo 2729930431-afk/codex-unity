@@ -5,6 +5,7 @@ const path = require("path");
 const readline = require("readline");
 
 const { callEditorRpc, isWriteMethod, listMethods } = require("./lib/editor-rpc-client");
+const { runValidateAfterChanges } = require("./lib/validate-after-changes");
 const {
   DEFAULT_PACKAGE_URL,
   addEditorRpcDependency,
@@ -55,6 +56,31 @@ const tools = [
         allowWrite: { type: "boolean", description: "Required for mutating method prefixes." },
       },
       required: ["method"],
+    },
+  },
+  {
+    name: "codex_unity_validate_after_changes",
+    description:
+      "After Unity C# or asset edits, refresh assets, wait for domain reload, then validate editor state and console errors.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: "EditorRpc host. Default 127.0.0.1." },
+        port: { type: "number", description: "EditorRpc port. Default 47841." },
+        timeoutSeconds: { type: "number", description: "Per-RPC timeout. Default 30." },
+        initialWaitSeconds: { type: "number", description: "Seconds to wait after refresh_assets. Default 10." },
+        retryDelaySeconds: { type: "number", description: "Seconds between get_editor_state retries. Default 5." },
+        maxStateAttempts: { type: "number", description: "Maximum get_editor_state attempts. Default 5." },
+        consoleCount: { type: "number", description: "Recent console entry count. Default 30." },
+        clearConsoleFirst: { type: "boolean", description: "Clear console before refreshing. Default true." },
+        includeLoadedScenes: { type: "boolean", description: "Include loaded scene summary. Default true." },
+        includeHierarchy: { type: "boolean", description: "Include hierarchy snapshot. Default false." },
+        scenePath: { type: "string", description: "Optional scene path for hierarchy snapshot." },
+        hierarchyMaxDepth: { type: "number", description: "Hierarchy snapshot max depth. Default 2." },
+        hierarchyLimit: { type: "number", description: "Hierarchy snapshot node limit. Default 120." },
+        allowWrite: { type: "boolean", description: "Required because this clears console and refreshes assets." },
+      },
+      required: ["allowWrite"],
     },
   },
   {
@@ -150,6 +176,17 @@ async function callTool(name, args = {}) {
       return toolResult(`EditorRpc method '${method}' looks mutating. Retry with allowWrite:true when this write is intended.`, true);
     }
     return toolResult(await callEditorRpc(args));
+  }
+
+  if (name === "codex_unity_validate_after_changes") {
+    if (args.allowWrite !== true) {
+      return toolResult(
+        "codex_unity_validate_after_changes refreshes Unity assets and clears the console by default; retry with allowWrite:true when validation is intended.",
+        true
+      );
+    }
+    const result = await runValidateAfterChanges(args);
+    return toolResult(result, !result.ok);
   }
 
   if (name === "codex_unity_install_editor_rpc") {

@@ -140,6 +140,75 @@ test("MCP write guard allows mutating calls with allowWrite", async () => {
   });
 });
 
+test("MCP validate-after-changes refuses to run without allowWrite", async () => {
+  const mcp = startMcp();
+  try {
+    const response = await mcp.request("tools/call", {
+      name: "codex_unity_validate_after_changes",
+      arguments: {},
+    });
+    assert.equal(response.result.isError, true);
+    assert.match(response.result.content[0].text, /allowWrite/);
+  } finally {
+    mcp.stop();
+  }
+});
+
+test("MCP validate-after-changes refreshes, waits for idle, and validates console", async () => {
+  const methods = [];
+  await withRpcServer((request) => {
+    methods.push(request.method);
+    if (request.method === "get_editor_state") {
+      return {
+        request_id: request.request_id,
+        success: true,
+        message: "state",
+        payload_json: JSON.stringify({ isCompiling: false, isUpdating: false }),
+        processed_at_utc: "now",
+      };
+    }
+    if (request.method === "validate_workspace") {
+      return {
+        request_id: request.request_id,
+        success: true,
+        message: "validated",
+        payload_json: JSON.stringify({
+          errorCount: 0,
+          warningCount: 0,
+          editorState: { isCompiling: false, isUpdating: false },
+        }),
+        processed_at_utc: "now",
+      };
+    }
+    return {
+      request_id: request.request_id,
+      success: true,
+      message: request.method,
+      payload_json: "",
+      processed_at_utc: "now",
+    };
+  }, async (port) => {
+    const mcp = startMcp();
+    try {
+      const response = await mcp.request("tools/call", {
+        name: "codex_unity_validate_after_changes",
+        arguments: {
+          port,
+          allowWrite: true,
+          initialWaitSeconds: 0,
+          retryDelaySeconds: 0,
+        },
+      });
+      const payload = JSON.parse(response.result.content[0].text);
+      assert.equal(response.result.isError, false);
+      assert.equal(payload.ok, true);
+      assert.deepEqual(methods, ["clear_console", "refresh_assets", "get_editor_state", "validate_workspace"]);
+    } finally {
+      mcp.stop();
+    }
+  });
+});
+
 test("MCP install tool refuses to edit without allowWrite", async () => {
   const root = makeUnityProject();
   const mcp = startMcp();
