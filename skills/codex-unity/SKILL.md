@@ -47,6 +47,7 @@ Treat `allowWrite:true` as task-local consent for the specific call, not as perm
 
 - After C# script changes, always run EditorRpc validation before finishing. If the task changed no scripts, RPC refresh can be skipped unless Unity-side state, assets, scenes, prefabs, or serialized data must be verified.
 - Prefer `codex_unity_validate_after_changes` with `allowWrite:true` after C# or asset changes. It clears the Console by default, runs `refresh_assets`, waits for Unity domain reload, polls `get_editor_state`, then calls `validate_workspace`.
+- During validation and RPC calls, automatically accept Unity scene reload dialogs when they appear, then continue waiting for EditorRpc instead of treating the modal reload prompt as a hard failure.
 - When using raw RPC calls instead, run `refresh_assets`, wait for Unity domain reload, then call `get_editor_state`.
 - If refresh or domain reload temporarily stops the RPC server, wait 8 to 15 seconds and retry once or twice.
 - Use `read_console` and `validate_workspace` when available to check compile and import errors.

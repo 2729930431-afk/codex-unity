@@ -5,7 +5,7 @@ const net = require("net");
 const test = require("node:test");
 
 const { callEditorRpc, isWriteMethod, listMethods } = require("../scripts/lib/editor-rpc-client");
-const { buildValidationArgs } = require("../scripts/lib/validate-after-changes");
+const { buildValidationArgs, runValidateAfterChanges } = require("../scripts/lib/validate-after-changes");
 
 async function withServer(handler, callback) {
   const sockets = new Set();
@@ -95,6 +95,25 @@ test("callEditorRpc reports connection failure", async () => {
   );
 });
 
+test("callEditorRpc pumps wait hook while waiting for response", async () => {
+  let waitCount = 0;
+  await withServer(() => null, async (port) => {
+    await assert.rejects(
+      callEditorRpc({
+        port,
+        method: "list_methods",
+        timeoutSeconds: 1,
+        waitPumpIntervalMs: 100,
+        onWait: () => {
+          waitCount += 1;
+        },
+      }),
+      /Timed out/
+    );
+  });
+  assert.ok(waitCount > 0);
+});
+
 test("write method detection covers mutating prefixes", () => {
   assert.equal(isWriteMethod("set_transform"), true);
   assert.equal(isWriteMethod("batch_assign_materials"), true);
@@ -116,4 +135,50 @@ test("validate-after-changes builds validate_workspace arguments", () => {
     scene_path: "Assets/Scenes/Main.unity",
     hierarchy_max_depth: 3,
   });
+});
+
+test("validate-after-changes pumps wait hook between editor state retries", async () => {
+  let stateCalls = 0;
+  let waitCount = 0;
+  await withServer((request) => {
+    if (request.method === "get_editor_state") {
+      stateCalls += 1;
+      return {
+        request_id: request.request_id,
+        success: true,
+        message: "state",
+        payload_json: JSON.stringify({ isCompiling: false, isUpdating: stateCalls === 1 }),
+        processed_at_utc: "now",
+      };
+    }
+    if (request.method === "validate_workspace") {
+      return {
+        request_id: request.request_id,
+        success: true,
+        message: "validated",
+        payload_json: JSON.stringify({ errorCount: 0, warningCount: 0 }),
+        processed_at_utc: "now",
+      };
+    }
+    return {
+      request_id: request.request_id,
+      success: true,
+      message: request.method,
+      payload_json: "",
+      processed_at_utc: "now",
+    };
+  }, async (port) => {
+    const result = await runValidateAfterChanges({
+      port,
+      initialWaitSeconds: 0,
+      retryDelaySeconds: 0.01,
+      maxStateAttempts: 2,
+      onWait: () => {
+        waitCount += 1;
+      },
+    });
+    assert.equal(result.ok, true);
+  });
+  assert.equal(stateCalls, 2);
+  assert.ok(waitCount > 0);
 });

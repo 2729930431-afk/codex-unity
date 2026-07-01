@@ -7,8 +7,14 @@ const DEFAULT_RETRY_DELAY_SECONDS = 5;
 const DEFAULT_STATE_ATTEMPTS = 5;
 const DEFAULT_CONSOLE_COUNT = 30;
 
-function sleep(seconds) {
-  return new Promise((resolve) => setTimeout(resolve, Math.max(0, seconds) * 1000));
+async function sleep(seconds, onWait) {
+  const deadline = Date.now() + Math.max(0, seconds) * 1000;
+  while (Date.now() < deadline) {
+    if (typeof onWait === "function") {
+      await onWait();
+    }
+    await new Promise((resolve) => setTimeout(resolve, Math.min(1000, Math.max(0, deadline - Date.now()))));
+  }
 }
 
 function numberOption(value, fallback, min = 0) {
@@ -32,6 +38,8 @@ function buildRpcOptions(options, method, args = {}) {
     host: options.host,
     port: options.port,
     timeoutSeconds: options.timeoutSeconds,
+    onWait: options.onWait,
+    waitPumpIntervalMs: options.waitPumpIntervalMs,
     method,
     args,
   };
@@ -130,7 +138,7 @@ async function runValidateAfterChanges(options = {}) {
 
   if (initialWaitSeconds > 0) {
     steps.push({ step: "wait_after_refresh", success: true, seconds: initialWaitSeconds });
-    await sleep(initialWaitSeconds);
+    await sleep(initialWaitSeconds, options.onWait);
   }
 
   let stateResponse = null;
@@ -141,7 +149,7 @@ async function runValidateAfterChanges(options = {}) {
     }
     if (attempt < maxStateAttempts && retryDelaySeconds > 0) {
       steps.push({ step: "wait_for_editor_idle", success: true, attempt, seconds: retryDelaySeconds });
-      await sleep(retryDelaySeconds);
+      await sleep(retryDelaySeconds, options.onWait);
     }
   }
 

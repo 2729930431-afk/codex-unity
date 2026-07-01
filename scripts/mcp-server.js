@@ -6,6 +6,7 @@ const readline = require("readline");
 
 const { callEditorRpc, isWriteMethod, listMethods } = require("./lib/editor-rpc-client");
 const { getUpdateStatus, hasBlockingUpdates } = require("./lib/update-status");
+const { dismissUnityReloadSceneDialog } = require("./lib/unity-dialogs");
 const { runValidateAfterChanges } = require("./lib/validate-after-changes");
 const {
   DEFAULT_PACKAGE_URL,
@@ -26,6 +27,13 @@ const updateCheckProperties = {
   skipRemoteCheck: { type: "boolean", description: "Only inspect local Git state without querying remotes." },
 };
 
+const rpcWaitProperties = {
+  autoAcceptSceneReload: {
+    type: "boolean",
+    description: "Automatically click Unity scene reload dialogs while waiting. Default true on Windows.",
+  },
+};
+
 const tools = [
   {
     name: "codex_unity_doctor",
@@ -38,6 +46,7 @@ const tools = [
         host: { type: "string", description: "EditorRpc host. Default 127.0.0.1." },
         port: { type: "number", description: "EditorRpc port. Default 47841." },
         timeoutSeconds: { type: "number", description: "Connection timeout. Default 3 for doctor." },
+        ...rpcWaitProperties,
         ...updateCheckProperties,
       },
     },
@@ -62,6 +71,7 @@ const tools = [
         host: { type: "string" },
         port: { type: "number" },
         timeoutSeconds: { type: "number" },
+        ...rpcWaitProperties,
         ...updateCheckProperties,
       },
     },
@@ -79,6 +89,7 @@ const tools = [
         port: { type: "number", description: "EditorRpc port. Default 47841." },
         timeoutSeconds: { type: "number", description: "Connection timeout. Default 30." },
         allowWrite: { type: "boolean", description: "Required for mutating method prefixes." },
+        ...rpcWaitProperties,
         ...updateCheckProperties,
       },
       required: ["method"],
@@ -97,6 +108,7 @@ const tools = [
         initialWaitSeconds: { type: "number", description: "Seconds to wait after refresh_assets. Default 10." },
         retryDelaySeconds: { type: "number", description: "Seconds between get_editor_state retries. Default 5." },
         maxStateAttempts: { type: "number", description: "Maximum get_editor_state attempts. Default 5." },
+        ...rpcWaitProperties,
         consoleCount: { type: "number", description: "Recent console entry count. Default 30." },
         clearConsoleFirst: { type: "boolean", description: "Clear console before refreshing. Default true." },
         includeLoadedScenes: { type: "boolean", description: "Include loaded scene summary. Default true." },
@@ -153,6 +165,16 @@ function updateStatusToDoctorCheck(check) {
   };
 }
 
+function withRpcWaitPump(args = {}) {
+  if (args.autoAcceptSceneReload === false) {
+    return args;
+  }
+  return {
+    ...args,
+    onWait: dismissUnityReloadSceneDialog,
+  };
+}
+
 async function runDoctor(args = {}) {
   const checks = [
     { name: "pluginRoot", status: "pass", message: pluginRoot },
@@ -188,11 +210,12 @@ async function runDoctor(args = {}) {
   }
 
   try {
-    const response = await listMethods({
+    const response = await listMethods(withRpcWaitPump({
       host: args.host,
       port: args.port,
       timeoutSeconds: args.timeoutSeconds || 3,
-    });
+      autoAcceptSceneReload: args.autoAcceptSceneReload,
+    }));
     const methods = response.payload && response.payload.methods ? response.payload.methods : [];
     checks.push({
       name: "editorRpc",
@@ -247,7 +270,7 @@ async function callTool(name, args = {}) {
   }
 
   if (name === "codex_unity_rpc_methods") {
-    return toolResult(await listMethods(args));
+    return toolResult(await listMethods(withRpcWaitPump(args)));
   }
 
   if (name === "codex_unity_rpc_call") {
@@ -258,7 +281,7 @@ async function callTool(name, args = {}) {
     if (isWriteMethod(method) && args.allowWrite !== true) {
       return toolResult(`EditorRpc method '${method}' looks mutating. Retry with allowWrite:true when this write is intended.`, true);
     }
-    return toolResult(await callEditorRpc(args));
+    return toolResult(await callEditorRpc(withRpcWaitPump(args)));
   }
 
   if (name === "codex_unity_validate_after_changes") {
@@ -268,7 +291,7 @@ async function callTool(name, args = {}) {
         true
       );
     }
-    const result = await runValidateAfterChanges(args);
+    const result = await runValidateAfterChanges(withRpcWaitPump(args));
     return toolResult(result, !result.ok);
   }
 

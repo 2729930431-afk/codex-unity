@@ -64,11 +64,20 @@ function callEditorRpc(options) {
   const host = options.host || DEFAULT_HOST;
   const port = Number.isFinite(Number(options.port)) ? Number(options.port) : DEFAULT_PORT;
   const timeoutMs = Math.max(1, Number(options.timeoutSeconds || DEFAULT_TIMEOUT_SECONDS)) * 1000;
+  const onWait = typeof options.onWait === "function" ? options.onWait : null;
+  const waitPumpIntervalMs = Math.max(100, Number(options.waitPumpIntervalMs || 1000));
 
   return new Promise((resolve, reject) => {
     const socket = net.createConnection({ host, port });
     let settled = false;
     let buffer = "";
+    let waitPumpTimer = null;
+
+    const pumpWait = () => {
+      Promise.resolve()
+        .then(onWait)
+        .catch(() => {});
+    };
 
     const finish = (error, value) => {
       if (settled) {
@@ -76,6 +85,7 @@ function callEditorRpc(options) {
       }
       settled = true;
       clearTimeout(timer);
+      clearInterval(waitPumpTimer);
       socket.destroy();
       if (error) {
         reject(error);
@@ -87,6 +97,12 @@ function callEditorRpc(options) {
     const timer = setTimeout(() => {
       finish(new Error(`Timed out waiting for EditorRpc at ${host}:${port}.`));
     }, timeoutMs);
+    if (onWait) {
+      waitPumpTimer = setInterval(pumpWait, waitPumpIntervalMs);
+      if (typeof waitPumpTimer.unref === "function") {
+        waitPumpTimer.unref();
+      }
+    }
 
     socket.setEncoding("utf8");
     socket.on("connect", () => {
@@ -125,6 +141,8 @@ async function listMethods(options = {}) {
     host: options.host,
     port: options.port,
     timeoutSeconds: options.timeoutSeconds,
+    onWait: options.onWait,
+    waitPumpIntervalMs: options.waitPumpIntervalMs,
     method: "list_methods",
     args: {},
   });
