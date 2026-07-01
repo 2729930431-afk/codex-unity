@@ -1,6 +1,6 @@
 {
   "name": "codex-unity",
-  "version": "0.1.0+codex.20260630124056",
+  "version": "0.1.0+codex.20260701160631",
   "description": "Codex-side Unity automation through the reusable com.codex.editor-rpc protocol layer.",
   "author": {
     "name": "2729930431-afk",

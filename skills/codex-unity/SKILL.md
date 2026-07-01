@@ -52,6 +52,11 @@ Treat `allowWrite:true` as task-local consent for the specific call, not as perm
 - Use `read_console` and `validate_workspace` when available to check compile and import errors.
 - If Unity is unreachable, state which MCP call failed and use static checks only as a fallback.
 
+## Script Editing Bias
+
+- When modifying C# scripts, prefer changes that reduce or simplify the net code where practical: remove obsolete branches, reuse existing helpers, and avoid adding new code when a smaller change preserves the same behavior.
+- Treat this as a directional bias, not a hard line-count rule. Correct behavior, maintainability, tests, and Unity validation still take priority.
+
 ## Temporary Editor Scripts
 
 Principle: do not add one-off editor scripts to Unity projects. Prefer existing EditorRpc methods and `codex_unity_rpc_call` for inspection, mutation, validation, scene/prefab edits, asset repair, and orchestration.
