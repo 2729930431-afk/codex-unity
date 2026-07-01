@@ -54,7 +54,11 @@ Treat `allowWrite:true` as task-local consent for the specific call, not as perm
 
 ## Temporary Editor Scripts
 
-Prefer stable RPC methods for reusable Unity operations. Use temporary `Assets/Editor/*.cs` scripts only for one-off validation or capability gaps that are not worth adding to `com.codex.editor-rpc` yet. Delete temporary scripts and their `.meta` files before finishing, then refresh assets.
+Principle: do not add one-off editor scripts to Unity projects. Prefer existing EditorRpc methods and `codex_unity_rpc_call` for inspection, mutation, validation, scene/prefab edits, asset repair, and orchestration.
+
+Before considering a script, run `codex_unity_rpc_methods` and check whether the task can be expressed through existing RPC calls. If a capability is genuinely missing and likely to recur, add or request a reusable method in `com.codex.editor-rpc` instead of leaving a project-local helper.
+
+Create a temporary `Assets/Editor/*.cs` script only as a last resort for a narrow capability gap. If you do, it must be task-scoped, named as temporary, and removed together with its `.meta` file before finishing. After deletion, refresh assets and validate the workspace so the project is not left with one-off builders, binders, repair tools, migration helpers, or test runners unless the user explicitly asked to keep a reusable project tool.
 
 ## Known Calling Traps
 
